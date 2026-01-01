@@ -1,6 +1,7 @@
 # Bot Manager for OpenKore
 
 A lightweight C++ console utility to launch, monitor, and manage multiple bot instances from a single dashboard.
+This program is part of the Ragnarok Offline Pack I released on my YouTube Channel https://www.youtube.com/@wrywndp
 
 ## Features
 * **Status Dashboard**: Real-time `[ON]` / `[  ]` status monitoring in a grid layout.
