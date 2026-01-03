@@ -3,6 +3,8 @@
 A lightweight C++ console utility to launch, monitor, and manage multiple bot instances from a single dashboard.
 This program is part of the Ragnarok Offline Pack I released on my YouTube Channel https://www.youtube.com/@wrywndp
 
+<img src="Screenshot/BotManager_Screenshot_1.png">
+
 ## Features
 * **Status Dashboard**: Real-time `[ON]` / `[  ]` status monitoring in a grid layout.
 * **Process Detection**: Identifies unique instances by inspecting `--control` paths in memory.
