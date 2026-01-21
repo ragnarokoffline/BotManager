@@ -36,18 +36,6 @@ This tool uses `ReadProcessMemory` to distinguish between multiple bots running 
 * **Status not updating**: If your bots are "Run as Administrator," the Manager must also be "Run as Administrator."
 * **Antivirus**: If the `.exe` is deleted, add the folder to your antivirus exclusions list.
 
-## Running with Classic Command Prompt (conhost)
-On Windows 11, the system often defaults to "Windows Terminal." If you prefer the classic Command Prompt look or need the specific window behavior shown in the demonstration, you can force the application to run using `conhost.exe`.
-### Steps to Configure:
-1. **Create a Shortcut**: Right-click **BotManager.exe** and select **Create Shortcut**.
-2. **Open Properties**: Right-click the new shortcut and select **Properties**.
-3. **Modify the Target**: In the **Target** field, add `conhost.exe` followed by a space at the very beginning of the existing path.
-4. **Save and Run**: Click **OK**. You can always use this shortcut to launch the program.
-### Example Target Path:
-> `conhost.exe C:\RO_PreRenewal\4_Openkore\BotManager.exe`
-## Why use conhost.exe?
-Using the classic console host ensures that the program's window positioning and sizing logic works exactly as intended, especially if you have customized the grid layout in your `.ini` settings.
-
 ## Build Requirements
 * **Compiler**: Visual Studio (MSVC)
 * **Standard**: C++17
