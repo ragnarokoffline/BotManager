@@ -11,7 +11,8 @@
 #include <windows.h>
 #include <winternl.h>
 #include <psapi.h>
-#include <conio.h> 
+#include <conio.h>
+#include <process.h>
 
 namespace fs = std::filesystem;
 
@@ -27,9 +28,9 @@ struct Config {
     std::string starter = "start.exe";
     std::string botListFile = "BotManagerPaths.txt";
     int botsPerColumn = 20;
-    double launchDelay = 0.0;
-    int windowX = -1;
-    int windowY = -1;
+    double launchDelay = 0.5;
+    int windowX = 200;
+    int windowY = 200;
 };
 
 struct Bot {
@@ -39,10 +40,32 @@ struct Bot {
     bool isRunning = false;
 };
 
-std::string g_iniFile = "BotManagerConfig.ini";
+std::string g_iniFile = ".\\BotManagerConfig.ini";
 Config g_cfg;
 std::string g_inputBuffer = "";
 int g_origX = -1, g_origY = -1;
+
+// --- NEW FEATURE: ENSURE SETTINGS EXIST ---
+void EnsureSettingsExist() {
+    if (!fs::exists(g_iniFile) || fs::file_size(g_iniFile) == 0) {
+        std::ofstream outfile(g_iniFile, std::ios::trunc);
+        outfile << "[Settings]\n"
+            << "; The name of your OpenKore loader (e.g., start.exe or wxstart.exe)\n"
+            << "StarterExecutable=start.exe\n\n"
+            << "; The text file containing the list of your bot folder paths\n"
+            << "BotListFile=BotManagerPaths.txt\n\n"
+            << "; Seconds to wait between starting each bot (use 0 for no delay)\n"
+            << "LaunchDelay=0.5\n\n"
+            << "[Interface]\n"
+            << "; Number of bots to display in a single vertical column\n"
+            << "BotsPerColumn=20\n\n"
+            << "; Horizontal position of the window on your screen (auto-saved)\n"
+            << "WindowX=200\n\n"
+            << "; Vertical position of the window on your screen (auto-saved)\n"
+            << "WindowY=200\n";
+        outfile.close();
+    }
+}
 
 void resetCursor() {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -130,17 +153,8 @@ void saveSettingsIfChanged() {
     RECT rect;
     if (GetWindowRect(hwnd, &rect)) {
         if (rect.left == g_origX && rect.top == g_origY) return;
-        std::ifstream inFile(g_iniFile);
-        std::vector<std::string> lines;
-        std::string line;
-        while (std::getline(inFile, line)) {
-            if (line.find("WindowX=") != std::string::npos) lines.push_back("WindowX=" + std::to_string(rect.left));
-            else if (line.find("WindowY=") != std::string::npos) lines.push_back("WindowY=" + std::to_string(rect.top));
-            else lines.push_back(line);
-        }
-        inFile.close();
-        std::ofstream outFile(g_iniFile);
-        for (const auto& l : lines) outFile << l << "\n";
+        WritePrivateProfileStringA("Interface", "WindowX", std::to_string(rect.left).c_str(), g_iniFile.c_str());
+        WritePrivateProfileStringA("Interface", "WindowY", std::to_string(rect.top).c_str(), g_iniFile.c_str());
         g_origX = rect.left; g_origY = rect.top;
     }
 }
@@ -201,7 +215,7 @@ void displayMenu(std::vector<Bot>& bots) {
     SetConsoleTextAttribute(hConsole, 7);
     std::cout << "  Run All : ";
     SetConsoleTextAttribute(hConsole, 10);
-    std:: cout << "Q";
+    std::cout << "Q";
     SetConsoleTextAttribute(hConsole, 7);
     std::cout << "         |  ";
     std::cout << "End All : ";
@@ -293,10 +307,39 @@ void processChoice(std::string choice, std::vector<Bot>& bots, const std::string
 }
 
 int main() {
+    HWND hWndInit = GetConsoleWindow();
+    char className[256];
+    GetClassNameA(hWndInit, className, sizeof(className));
+
+    if (std::string(className) != "ConsoleWindowClass") {
+        char exepath[MAX_PATH];
+        GetModuleFileNameA(NULL, exepath, MAX_PATH);
+        _spawnl(_P_NOWAIT, "C:\\Windows\\System32\\conhost.exe", "conhost.exe", exepath, NULL);
+        return 0;
+    }
+
+    // Initialize Settings
+    EnsureSettingsExist();
     SetConsoleCtrlHandler(consoleHandler, TRUE);
+
+    // Load Settings using WinAPI Profile functions
+    char buf[255];
+    GetPrivateProfileStringA("Settings", "StarterExecutable", "start.exe", buf, 255, g_iniFile.c_str());
+    g_cfg.starter = buf;
+
+    GetPrivateProfileStringA("Settings", "BotListFile", "BotManagerPaths.txt", buf, 255, g_iniFile.c_str());
+    g_cfg.botListFile = buf;
+
+    GetPrivateProfileStringA("Settings", "LaunchDelay", "0.5", buf, 255, g_iniFile.c_str());
+    g_cfg.launchDelay = std::stod(buf);
+
+    g_cfg.botsPerColumn = GetPrivateProfileIntA("Interface", "BotsPerColumn", 20, g_iniFile.c_str());
+    g_cfg.windowX = GetPrivateProfileIntA("Interface", "WindowX", 200, g_iniFile.c_str());
+    g_cfg.windowY = GetPrivateProfileIntA("Interface", "WindowY", 200, g_iniFile.c_str());
+
+    // Setup Console Environment
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
     DWORD mode;
-
     if (GetConsoleMode(hIn, &mode)) {
         mode &= ~ENABLE_QUICK_EDIT_MODE;
         mode &= ~ENABLE_MOUSE_INPUT;
@@ -305,34 +348,11 @@ int main() {
         SetConsoleMode(hIn, mode);
     }
 
-    std::ifstream f(g_iniFile);
-    std::string l;
-    if (f.is_open()) {
-        while (std::getline(f, l)) {
-            std::string lineClean = l;
-            lineClean.erase(std::remove_if(lineClean.begin(), lineClean.end(), [](unsigned char c) { return std::isspace(c); }), lineClean.end());
-            size_t d = lineClean.find('=');
-            if (d != std::string::npos) {
-                std::string k = lineClean.substr(0, d), v = lineClean.substr(d + 1);
-                if (k == "StarterExecutable") g_cfg.starter = v;
-                else if (k == "BotListFile") g_cfg.botListFile = v;
-                else if (k == "BotsPerColumn") try { g_cfg.botsPerColumn = std::stoi(v); }
-                catch (...) {}
-                else if (k == "LaunchDelay") try { g_cfg.launchDelay = std::stod(v); }
-                catch (...) {}
-                else if (k == "WindowX") try { g_cfg.windowX = std::stoi(v); }
-                catch (...) {}
-                else if (k == "WindowY") try { g_cfg.windowY = std::stoi(v); }
-                catch (...) {}
-            }
-        }
-        f.close();
-    }
-
     std::vector<Bot> bots;
     std::ifstream bf(g_cfg.botListFile);
     int botCounter = 1;
     if (bf.is_open()) {
+        std::string l;
         while (std::getline(bf, l)) {
             if (!l.empty()) {
                 bots.push_back({ botCounter++, l, fs::path(l).filename().string() });
@@ -349,11 +369,9 @@ int main() {
     }
 
     HWND hwnd = GetConsoleWindow();
-    if (g_cfg.windowX != -1) {
-        SetWindowPos(hwnd, 0, g_cfg.windowX, g_cfg.windowY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-        g_origX = g_cfg.windowX;
-        g_origY = g_cfg.windowY;
-    }
+    SetWindowPos(hwnd, 0, g_cfg.windowX, g_cfg.windowY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    g_origX = g_cfg.windowX;
+    g_origY = g_cfg.windowY;
 
     system(("mode con: cols=" + std::to_string(consoleWidth) + " lines=" + std::to_string(numRows + 12)).c_str());
 
@@ -367,7 +385,12 @@ int main() {
     COORD bufferSize = { (SHORT)consoleWidth, (SHORT)(numRows + 12) };
     SetConsoleScreenBufferSize(hOut, bufferSize);
 
-    system("title Bot Manager 2.0.0 by wrywndp");
+    CONSOLE_CURSOR_INFO cursorInfo;
+    cursorInfo.dwSize = 20;
+    cursorInfo.bVisible = TRUE;
+    SetConsoleCursorInfo(hOut, &cursorInfo);
+
+    system("title Bot Manager 2.0.1 by wrywndp");
 
     auto lastRef = std::chrono::steady_clock::now();
     system("cls");
