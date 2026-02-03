@@ -13,6 +13,8 @@
 #include <psapi.h>
 #include <conio.h>
 #include <process.h>
+#include <shellapi.h>
+#pragma comment(lib, "shell32.lib")
 
 namespace fs = std::filesystem;
 
@@ -246,10 +248,28 @@ void runOneBot(const Bot& bot, const std::string& baseDir) {
         std::cout << "  Bot: " << std::left << std::setw(25) << bot.displayName << "... Already Running." << std::endl;
         return;
     }
+
     std::cout << "  Starting bot: " << std::left << std::setw(25) << bot.displayName << "... Done." << std::endl;
-    std::string cmd = "start \"\" \"" + baseDir + "\\" + g_cfg.starter + "\" --control=\"" + bot.path + "\"";
-    system(cmd.c_str());
-    if (g_cfg.launchDelay > 0) std::this_thread::sleep_for(std::chrono::milliseconds((int)(g_cfg.launchDelay * 1000)));
+
+    std::string exePath = baseDir + "\\" + g_cfg.starter;
+    std::string params = "--control=\"" + bot.path + "\"";
+
+    SHELLEXECUTEINFOA sei = { 0 };
+    sei.cbSize = sizeof(SHELLEXECUTEINFOA);
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+    sei.lpVerb = "open";
+    sei.lpFile = exePath.c_str();
+    sei.lpParameters = params.c_str();
+    sei.lpDirectory = baseDir.c_str();
+    sei.nShow = SW_SHOWNOACTIVATE;
+
+    if (!ShellExecuteExA(&sei)) {
+        std::cerr << "  Failed to launch bot: " << GetLastError() << std::endl;
+    }
+
+    if (g_cfg.launchDelay > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds((int)(g_cfg.launchDelay * 1000)));
+    }
 }
 
 void processChoice(std::string choice, std::vector<Bot>& bots, const std::string& baseDir) {
@@ -390,7 +410,7 @@ int main() {
     cursorInfo.bVisible = TRUE;
     SetConsoleCursorInfo(hOut, &cursorInfo);
 
-    system("title Bot Manager 2.0.1 by wrywndp");
+    system("title Bot Manager 2.0.2 by wrywndp");
 
     auto lastRef = std::chrono::steady_clock::now();
     system("cls");
