@@ -327,6 +327,13 @@ void processChoice(std::string choice, std::vector<Bot>& bots, const std::string
 }
 
 int main() {
+    HANDLE hMutex = CreateMutexA(NULL, TRUE, "Local\\WrywndpBotManagerMutex");
+
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        if (hMutex) CloseHandle(hMutex);
+        return 0;
+    }
+
     HWND hWndInit = GetConsoleWindow();
     char className[256];
     GetClassNameA(hWndInit, className, sizeof(className));
@@ -410,7 +417,7 @@ int main() {
     cursorInfo.bVisible = TRUE;
     SetConsoleCursorInfo(hOut, &cursorInfo);
 
-    system("title Bot Manager 2.0.2 by wrywndp");
+    system("title Bot Manager 2.0.3 by wrywndp");
 
     auto lastRef = std::chrono::steady_clock::now();
     system("cls");
@@ -446,5 +453,11 @@ int main() {
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
+
+    if (hMutex) {
+        ReleaseMutex(hMutex);
+        CloseHandle(hMutex);
+    }
+
     return 0;
 }
